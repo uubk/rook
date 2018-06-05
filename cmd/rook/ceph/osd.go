@@ -100,7 +100,8 @@ func startOSD(cmd *cobra.Command, args []string) error {
 	context.Clientset = clientset
 	context.RookClientset = rookClientset
 
-	locArgs, err := client.FormatLocation(cfg.location, cfg.nodeName)
+	labels := k8sutil.GetCurrentNodeLabels(clientset)
+	locArgs, err := client.FormatLocation(cfg.location, cfg.nodeName, labels)
 	if err != nil {
 		rook.TerminateFatal(fmt.Errorf("invalid location. %+v\n", err))
 	}

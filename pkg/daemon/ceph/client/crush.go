@@ -24,7 +24,9 @@ import (
 	"strconv"
 	"strings"
 
+	"bytes"
 	"github.com/rook/rook/pkg/clusterd"
+	"html/template"
 )
 
 const defaultCrushMap = `# begin crush map
@@ -255,11 +257,32 @@ func CreateDefaultCrushMap(context *clusterd.Context, clusterName string) (strin
 	return "", nil
 }
 
-func FormatLocation(location, hostName string) ([]string, error) {
+func FormatLocation(location, hostName string, labels map[string]string) ([]string, error) {
+	labelDump, err := json.Marshal(labels)
+	if err == nil {
+		logger.Infof("CRUSH location available template variables: %s", labelDump)
+	} else {
+		logger.Warningf("Couldn't get available CRUSH location variables: %s", err)
+	}
+
 	var pairs []string
 	if location == "" {
 		pairs = []string{}
 	} else {
+		locationTemplate, err := template.New("tmp").Parse(location)
+		if err != nil {
+			logger.Warningf("Couldn't initialize template for location string '%s', skipping! (%s)", location,
+				err)
+		} else {
+			var buffer bytes.Buffer
+			err = locationTemplate.Execute(&buffer, labels)
+			if err != nil {
+				logger.Warningf("Couldn't template location string '%s', skipping! (%s)", location, err)
+			} else {
+				location = buffer.String()
+				logger.Infof("CRUSH location templated: %s", location)
+			}
+		}
 		pairs = strings.Split(location, ",")
 	}
 

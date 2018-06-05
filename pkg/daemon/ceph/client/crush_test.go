@@ -247,9 +247,12 @@ func TestGetCrushMap(t *testing.T) {
 
 func TestCrushLocation(t *testing.T) {
 	loc := "dc=datacenter1"
+	testMap := make(map[string]string)
+	testMap["namespace/attribute"] = "somevalue"
+	testMap["simplekey"] = "simplevalue"
 
 	// test that root will get filled in with default/runtime values
-	res, err := FormatLocation(loc, "my.node")
+	res, err := FormatLocation(loc, "my.node", testMap)
 	assert.Nil(t, err)
 	assert.Equal(t, 3, len(res))
 	locSet := util.CreateSet(res)
@@ -259,7 +262,7 @@ func TestCrushLocation(t *testing.T) {
 
 	// test that if host name and root are already set they will be honored
 	loc = "root=otherRoot,dc=datacenter2,host=node123"
-	res, err = FormatLocation(loc, "othernode")
+	res, err = FormatLocation(loc, "othernode", testMap)
 	assert.Nil(t, err)
 	assert.Equal(t, 3, len(res))
 	locSet = util.CreateSet(res)
@@ -269,7 +272,24 @@ func TestCrushLocation(t *testing.T) {
 
 	// test an invalid CRUSH location format
 	loc = "root=default,prop:value"
-	_, err = FormatLocation(loc, "othernode")
+	_, err = FormatLocation(loc, "othernode", testMap)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "is not in a valid format")
+
+	// test that templating works correctly
+	loc = "root={{.simplekey}},rack={{ index . \"namespace/attribute\" }},host=node123"
+	res, err = FormatLocation(loc, "othernode", testMap)
+	assert.Nil(t, err)
+	assert.Equal(t, 3, len(res))
+	locSet = util.CreateSet(res)
+	assert.True(t, locSet.Contains("root=simplevalue"))
+	assert.True(t, locSet.Contains("rack=somevalue"))
+	assert.True(t, locSet.Contains("host=node123"))
+
+	// test templating error case
+	loc = "root={{.invalidkey}},rack={{ index . \"namespace/attribute\" }},host=node123"
+	res, err = FormatLocation(loc, "othernode", testMap)
+	assert.NotNil(t, err)
+	assert.Equal(t, 0, len(res))
+	assert.Contains(t, err.Error(), "CRUSH location field 'root=' is not in a valid format")
 }
