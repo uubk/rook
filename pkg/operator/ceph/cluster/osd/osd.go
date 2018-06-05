@@ -57,11 +57,19 @@ const (
 	clusterAvailableSpaceReserve     = 0.05
 )
 
-var clusterAccessRules = []v1beta1.PolicyRule{
+var namespaceAccessRules = []v1beta1.PolicyRule{
 	{
 		APIGroups: []string{""},
 		Resources: []string{"configmaps"},
 		Verbs:     []string{"get", "list", "watch", "create", "update", "delete"},
+	},
+}
+
+var clusterAccessRules = []v1beta1.PolicyRule{
+	{
+		APIGroups: []string{""},
+		Resources: []string{"nodes"},
+		Verbs:     []string{"get"},
 	},
 }
 
@@ -107,9 +115,13 @@ func (c *Cluster) Start() error {
 	logger.Infof("start running osds in namespace %s", c.Namespace)
 
 	// create the artifacts for the osd to work with RBAC enabled
-	err := k8sutil.MakeRole(c.context.Clientset, c.Namespace, appName, clusterAccessRules, &c.ownerRef)
+	err := k8sutil.MakeRole(c.context.Clientset, c.Namespace, appName, namespaceAccessRules, &c.ownerRef)
 	if err != nil {
-		logger.Warningf("failed to init RBAC for OSDs. %+v", err)
+		logger.Warningf("failed to init RBAC (Role) for OSDs. %+v", err)
+	}
+	err = k8sutil.MakeClusterRole(c.context.Clientset, c.Namespace, appName, clusterAccessRules, &c.ownerRef)
+	if err != nil {
+		logger.Warningf("failed to init RBAC (CluserRole) for OSDs. %+v", err)
 	}
 
 	if c.Storage.UseAllNodes == false && len(c.Storage.Nodes) == 0 {
